@@ -1,3 +1,7 @@
+# TODO: Zeitabhängigkeit
+# TODO: Real world coordinates
+# TODO: print offset from center
+# TODO: print radius
 import numpy as np
 
 # Define a class to receive the characteristics of each line detection
@@ -23,21 +27,42 @@ class LaneLine():
         self.allx = None  
         #y values for detected line pixels
         self.ally = None
+        #
+        self.left_fit = None
+        self.right_fit = None
 
-    def fit(self, ploty, leftx, rightx):
+    def fit(self, window_centroids):
+        data   = np.array(window_centroids)
+        ploty  = data[:,0]
+        leftx  = data[:,1]
+        rightx = data[:,2]
+    
         # Fit a second order polynomial to pixel positions in each fake lane line
-        left_fit   = np.polyfit(ploty, leftx, 2)
-        left_fitx  = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-        right_fit  = np.polyfit(ploty, rightx, 2)
-        right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
-
-        # Define conversions in x and y from pixels space to meters
-        ym_per_pix = 30/720 # meters per pixel in y dimension
-        xm_per_pix = 3.7/700 # meters per pixel in x dimension
-
-        # Fit new polynomials to x,y in world space
-        left_fit_cr  = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
-        right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2) 
+        self.left_fit   = np.polyfit(ploty, leftx, 2)
+        self.right_fit  = np.polyfit(ploty, rightx, 2)
+        
+    def generate_road(self, offset, window_height):
+        offset_x   = 30; # todo: in camera
+        offset_y   = -5
+        offset_x   = 0;
+        offset_y   = 0;
+        ploty      = offset + np.linspace(0, window_height, num=200)
+        left_fitx  = self.left_fit[0]*ploty**2  + self.left_fit[1]*ploty  + self.left_fit[2]
+        right_fitx = self.right_fit[0]*ploty**2 + self.right_fit[1]*ploty + self.right_fit[2]
+        return (ploty-offset_y, left_fitx-offset_x, right_fitx-offset_x)
+        
+#        left_fitx  = self.left_fit[0]*ploty**2  + self.left_fit[1]*ploty  + self.left_fit[2]
+#        right_fitx = self.right_fit[0]*ploty**2 + self.right_fit[1]*ploty + self.right_fit[2]
+#        return (left_fitx, right_fitx)
+    
+#    def fit_world(self, ploty, leftx, rightx): # Das stimmt was nicht ploty länge ist nicht leftx länge
+#        # Define conversions in x and y from pixels space to meters
+#        ym_per_pix = 30/720 # meters per pixel in y dimension
+#        xm_per_pix = 3.7/700 # meters per pixel in x dimension
+#
+#        # Fit new polynomials to x,y in world space
+#        left_fit_cr  = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
+#        right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
  
     def get_radius(self):
         # Calculate the new radii of curvature
@@ -46,11 +71,6 @@ class LaneLine():
         # Now our radius of curvature is in meters
         print(left_curverad, 'm', right_curverad, 'm')
         # Example values: 632.1 m    626.2 m        
-        
-    def generate_road(self, window_height):
-        ploty = (window_height/2 + np.linspace(0, 630, num=720)) / 1
-        left_fitx  = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-        right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
 
     def get_next(self):
         return "TODO"

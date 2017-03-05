@@ -1,12 +1,15 @@
 import numpy as np
 import cv2
+from .lane_line import LaneLine
 
 class LaneDetector:
     def __init__(self):
         # window settings
-        self.window_width = 10 
-        self.window_height = 80 # Break image into 9 vertical layers since image height is 720
-        self.margin = 40 # How much to slide left and right for searching
+        self.window_width       = 10 
+        self.window_height      = 80 # Break image into 9 vertical layers since image height is 720
+        self.margin             = 40 # How much to slide left and right for searching
+        self.previous_lane      = None;
+        self.previous_centroids = None;
 
     def window_mask(self, img_ref, center, level):
         width  = self.window_width
@@ -16,9 +19,9 @@ class LaneDetector:
         return output
     
     def find_window_centroids(self, warped):
-        window_width = self.window_width;
+        window_width  = self.window_width;
         window_height = self.window_height;      
-        margin = self.margin;              
+        margin        = self.margin;              
         
         window_centroids = [] # Store the (left,right) window centroid positions per level
         window = np.ones(window_width) # Create our window template that we will use for convolutions
@@ -33,7 +36,7 @@ class LaneDetector:
         r_center = np.argmax(np.convolve(window,r_sum))-window_width/2+int(warped.shape[1]/2)
 
         # Add what we found for the first layer
-        window_centroids.append((l_center,r_center))
+        window_centroids.append((window_height/2,l_center,r_center))
 
         # Go through each layer looking for max pixel locations
         for level in range(1,(int)(warped.shape[0]/window_height)):
@@ -51,11 +54,13 @@ class LaneDetector:
             r_max_index = int(min(r_center+offset+margin,warped.shape[1]))
             r_center = np.argmax(conv_signal[r_min_index:r_max_index])+r_min_index-offset
             # Add what we found for that layer
-            window_centroids.append((l_center,r_center))
+            window_centroids.append((window_height/2 + window_height*level,l_center,r_center))
 
         return window_centroids
 
     def draw_overlay_image(self, binary_warp, image_warp, window_centroids):
+
+        #assert binary_warp.shape[2] == 1, "binary_warp not binary"
         
         # If we found any window centers
         if len(window_centroids) > 0:
@@ -67,8 +72,8 @@ class LaneDetector:
             # Go through each level and draw the windows 	
             for level in range(0,len(window_centroids)):
                 # Window_mask is a function to draw window areas
-                l_mask = self.window_mask(binary_warp,window_centroids[level][0],level)
-                r_mask = self.window_mask(binary_warp,window_centroids[level][1],level)
+                l_mask = self.window_mask(binary_warp,window_centroids[level][1],level)
+                r_mask = self.window_mask(binary_warp,window_centroids[level][2],level)
                 # Add graphic points from window mask here to total pixels found 
                 l_points[(l_points == 255) | ((l_mask == 1) )] = 255
                 r_points[(r_points == 255) | ((r_mask == 1) )] = 255
@@ -86,28 +91,18 @@ class LaneDetector:
             output1 = np.array(cv2.merge((binary_warped, binary_warped, binary_warped)),np.uint8)
             output2 = output1  
         return output1, output2    
-    
-    def pipeline(self, cam, imgfilter, image):
-        img_width = 120
-        image = cam.undistort_img(image)
-        image_warp, src, dst, M, Minv = cam.warp_birdeye(image)
-        image_warp_org = image_warp.copy()
-        image_warp = image_warp[:,:img_width,:];
-        delme, binary_img = imgfilter.pipeline(image)
-        binary_img = np.array(np.dstack((binary_img, binary_img, binary_img)), np.uint8)
-        binary_warp, src, dst, M, Minv = cam.warp_birdeye(binary_img)
-        binary_warp = binary_warp[:,:img_width,0];
-        
-        window_centroids = self.find_window_centroids(binary_warp);
-        output_binary, output_image = self.draw_overlay_image(binary_warp, image_warp, window_centroids)
-        return (output_binary, output_image, binary_warp, image_warp), window_centroids
-    
-    def draw_lanes_warped(self, lanes, image):
+
+
+    def draw_lanes_warped(self, cam, lanes, image):
         # Create an image to draw the lines on
         color_warp = np.zeros_like(image).astype(np.uint8)
         
-        ploty = (self.window_height/2 + np.linspace(0, 630, num=720/self.window_height)) / 1
-        (left_fitx, right_fitx) = lanes.get_plot(ploty);
+#        ploty = (self.window_height/2 + np.linspace(0, 630, num=720/self.window_height)) / 1
+#        ploty = np.linspace(0, 200, num=100);
+#        (left_fitx, right_fitx) = lanes.get_plot(ploty);
+        (ploty, left_fitx, right_fitx) = lanes.generate_road(10, 300);
+#        left_fitx = left_fitx - 10;
+#        right_fitx = right_fitx - 10;
 
         # Recast the x and y points into usable format for cv2.fillPoly()
         pts_left  = np.array([np.transpose(np.vstack([left_fitx, color_warp.shape[0]-ploty]))])
@@ -116,14 +111,46 @@ class LaneDetector:
 
         # Draw the lane onto the warped blank image
         cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
-#        if True:
-#            result0 = cv2.addWeighted(image_warp_org, 1, color_warp, 0.3, 0)
-#            plt.imshow(result0)
-#            plt.show()
 
+        newwarp = cam.unwarp_birdeye(color_warp);
         # Warp the blank back to original image space using inverse perspective matrix (Minv)
-        newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0])) 
+#        newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0])) 
 
         # Combine the result with the original image
         result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)  
         return result
+    
+    
+    def pipeline(self, cam, imgfilter, img):
+
+        # 1. undisdort
+        img = img.copy();
+        img_undist = cam.undistort_img(img);
+
+        # 2. calculate gradients
+        _, img_gradient = imgfilter.gradient_filter(img_undist)
+        img_gradient    = np.array(np.dstack((img_gradient, img_gradient, img_gradient)), np.uint8)
+
+        # 3. warp to birdeye view
+        img_gradient_warp = cam.warp_birdeye(img_gradient)
+        img_warp          = cam.warp_birdeye(img_undist)
+
+        # 4. find centroids
+        window_centroids = self.find_window_centroids(img_gradient_warp[:,:,0]);
+        self.previous_centroids = window_centroids;
+
+        # 5. fit lanes
+        lane = LaneLine();
+        lane.fit(window_centroids);
+        self.previous_lane = lane; # TODO: das geht besser
+
+        # Draw overlay images
+        img_gradient_overlay, img_overlay = self.draw_overlay_image(img_gradient_warp[:,:,0], img_warp, window_centroids)
+        img_warp_with_lanes = self.draw_lanes_warped(cam, lane, img_undist);
+
+        return lane, window_centroids, {
+                'gradient':      img_gradient_overlay,
+                'image':         img_overlay,
+                'gradient_warp': img_gradient_warp[:,:,0],
+                'image_warp':    img_warp,
+                'final':         img_warp_with_lanes}

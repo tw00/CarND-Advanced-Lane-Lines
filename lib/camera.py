@@ -13,6 +13,12 @@ class Camera():
         # 
         self.calibration_objpoints = []
         self.calibration_imgpoints = []
+        #
+        self.M      = None # Matrix image to birdeye
+        self.Minv   = None # Matrix birdeye to image
+        self.cut_x  = None # Pixels to cut after birdeye transformation
+        self.src    = None # source coordinates
+        self.dst    = None # destination coordinates
         
     def calibrate(self, img_dir):
         # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
@@ -99,8 +105,8 @@ class Camera():
             # a nice fit for displaying our warped result 
             # again, not exact, but close enough for our purposes
             dst = np.float32([[offset, offset], [img_size[0]-offset, offset], 
-                                         [img_size[0]-offset, img_size[1]-offset], 
-                                         [offset, img_size[1]-offset]])
+                              [img_size[0]-offset, img_size[1]-offset], 
+                              [offset, img_size[1]-offset]])
             # Given src and dst points, calculate the perspective transform matrix
             M = cv2.getPerspectiveTransform(src, dst)
             # Warp the image using OpenCV warpPerspective()
@@ -110,44 +116,54 @@ class Camera():
         return warped, M    
 
     def warp_birdeye(self, img):
-        # USA Lane width: 3.7 m (12ft)
-        # The finding holds implications for traffic safety. Each dashed line measures 10 feet, and the empty spaces in-between measure 30 feet.
-        #
-        # Choose offset from image corners to plot detected corners
-        # This should be chosen to present the result at the proper aspect ratio
-        # My choice of 100 pixels is not exact, but close enough for our purpose here
-        offset_x = 30 # offset for dst points
-        offset_y = -30    
-        factor = 5
 
         # Grab the image shape
         img_size = (img.shape[1], img.shape[0])
 
-        # For source points I'm grabbing the outer four detected corners
-        src = np.float32([[308,648],[1000,648],[579,460],[703,460]])
+        if self.M is None:
+            # USA Lane width: 3.7 m (12ft)
+            # The finding holds implications for traffic safety. Each dashed line measures 10 feet, and the empty spaces in-between measure 30 feet.
+            #
+            # Choose offset from image corners to plot detected corners
+            # This should be chosen to present the result at the proper aspect ratio
+            # My choice of 100 pixels is not exact, but close enough for our purpose here
+            factor   = 5
 
-        Lane_W = factor*(12) # ft (lande width)
-        Lane_D = factor*(30+10+30+10) # ft (lane distance)
+            # For source points I'm grabbing the outer four detected corners
+            src = np.float32([[308,648],[1000,648],[579,460],[703,460]])
 
-        # For destination points, I'm arbitrarily choosing some points to be
-        # a nice fit for displaying our warped result 
-        # again, not exact, but close enough for our purposes
-    #    dst = np.float32([[offset,        img_size[1]-offset],
-    #                      [Lane_W+offset, img_size[1]-offset], 
-    #                      [offset,        img_size[1]-Lane_D-offset], 
-    #                      [Lane_W+offset, img_size[1]-Lane_D-offset]])
+            Lane_W = factor*(12)          # ft (lande width)
+            Lane_D = factor*(30+10+30+10) # ft (lane distance)
 
-        dst = np.float32([[offset_x,        img_size[1]+offset_y],
-                          [Lane_W+offset_x, img_size[1]+offset_y], 
-                          [offset_x,        img_size[1]-Lane_D+offset_y], 
-                          [Lane_W+offset_x, img_size[1]-Lane_D+offset_y]])    
+            # offset_x = 200  # offset for dst points
+            # offset_y = -30
+            offset_x = int(Lane_W/2);
+            offset_y = -5;
+            cut_x    = 2*offset_x + Lane_W;
 
-        # Given src and dst points, calculate the perspective transform matrix
-        M = cv2.getPerspectiveTransform(src, dst)
-        Minv = cv2.getPerspectiveTransform(dst, src)    
+            # For destination points, I'm arbitrarily choosing some points to be
+            # a nice fit for displaying our warped result 
+            # again, not exact, but close enough for our purposes
+            dst = np.float32([[offset_x,        img_size[1]+offset_y],
+                            [Lane_W+offset_x, img_size[1]+offset_y], 
+                            [offset_x,        img_size[1]-Lane_D+offset_y], 
+                            [Lane_W+offset_x, img_size[1]-Lane_D+offset_y]])    
+
+            # Given src and dst points, calculate the perspective transform matrix
+            self.src   = src;
+            self.dst   = dst;
+            self.M     = cv2.getPerspectiveTransform(src, dst)
+            self.Minv  = cv2.getPerspectiveTransform(dst, src)    
+            self.cut_x = cut_x;
 
         # Warp the image using OpenCV warpPerspective()
-        warped = cv2.warpPerspective(img, M, img_size)
+        warped = cv2.warpPerspective(img, self.M, img_size)
+        warped = warped[:,0:self.cut_x,:];
 
         # Return the resulting image and matrix
-        return warped, src, dst, M, Minv
+        return warped
+
+    def unwarp_birdeye(self, img):
+        # Warp the blank back to original image space using inverse perspective matrix (Minv)
+        img_unwarp = cv2.warpPerspective(img, self.Minv, (img.shape[1], img.shape[0])) 
+        return img_unwarp

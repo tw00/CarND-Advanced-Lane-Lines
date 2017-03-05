@@ -82,4 +82,4 @@ class ImageFilter:
         # Note color_binary[:, :, 0] is all 0s, effectively an all black image. It might
         # be beneficial to replace this channel with something else.
         color_binary = np.dstack(( np.zeros_like(sxbinary), sxbinary, s_binary))
-        return olor_binary, np.logical_or(sxbinary, s_binary)
+        return color_binary, np.logical_or(sxbinary, s_binary)
