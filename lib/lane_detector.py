@@ -22,8 +22,8 @@ class LaneDetector:
     
     def find_window_centroids(self, warped):
         window_width  = self.window_width;
-        window_height = self.window_height;      
-        margin        = self.margin;              
+        window_height = self.window_height;
+        margin        = self.margin;
         
         window_centroids = [] # Store the (left,right) window centroid positions per level
         window = np.ones(window_width) # Create our window template that we will use for convolutions
@@ -137,9 +137,8 @@ class LaneDetector:
         result = cv2.addWeighted(image, 1, newwarp, 0.5, 0)
 
         # Print text
-        ft_to_m = 0.3048
-        r1 = self.lane_left.get_radius()  * ft_to_m
-        r2 = self.lane_right.get_radius() * ft_to_m
+        r1 = self.lane_left.get_radius()
+        r2 = self.lane_right.get_radius()
         d1 = self.lane_left.get_vehicle_offset()
         d2 = self.lane_right.get_vehicle_offset()
         p1 = self.lane_left.last_plausible;

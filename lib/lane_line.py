@@ -118,25 +118,29 @@ class LaneLine():
 #        self.fit_cr = self.current_fit; # HACK
         self.fit_cr = self.best_fit; # HACK
         y_eval = np.max(self.ally)
-        ym_per_pix = 5/100 # meters per pixel in y dimension
-        xm_per_pix = 5/100 # meters per pixel in x dimension
+#        ym_per_pix = 5/100 # meters per pixel in y dimension
+#        xm_per_pix = 5/100 # meters per pixel in x dimension
+        factor     = 5 # px/ft
+        ft_to_m    = 0.3048 # m/ft
+        ym_per_pix = (1/factor) * ft_to_m # ft/px * m/ft => m/px
+        xm_per_pix = (1/factor) * ft_to_m # ft/px * m/ft => m/px
         curverad = ((1 + (2*self.fit_cr[0]*y_eval*ym_per_pix + self.fit_cr[1])**2)**1.5) / np.absolute(2*self.fit_cr[0])
-        return curverad # TODO: DAS SIND FEET
+        return curverad
 
     def get_vehicle_offset(self):
 #        self.fit_cr = self.current_fit; # HACK
         self.fit_cr = self.best_fit; # HACK
-        xm_per_pix = 5/100 # meters per pixel in x dimension
+        # xm_per_pix = 5/100 # meters per pixel in x dimension
+        factor     = 5 # px/ft
+        ft_to_m    = 0.3048 # m/ft
+        xm_per_pix = (1/factor) * ft_to_m # ft/px * m/ft => m/px
         #distance in meters of vehicle center from the line
-        #self.line_base_pos = None 
+        #self.line_base_pos = None
         center_px = 59
-        return (center_px - self.fit_cr[2])*xm_per_pix # TODO: Das ist feet
+        return (center_px - self.fit_cr[2])*xm_per_pix
 
         #left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
         #right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
         # Now our radius of curvature is in meters
         # print(left_curverad, 'm', right_curverad, 'm')
         # Example values: 632.1 m    626.2 m        
-
-    def get_next(self):
-        return "TODO"
