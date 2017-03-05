@@ -5,11 +5,13 @@ from .lane_line import LaneLine
 class LaneDetector:
     def __init__(self):
         # window settings
-        self.window_width       = 10 
+        self.window_width       = 5 
         self.window_height      = 80 # Break image into 9 vertical layers since image height is 720
         self.margin             = 40 # How much to slide left and right for searching
-        self.previous_lane      = None;
-        self.previous_centroids = None;
+        #self.previous_lane      = None;
+        #self.previous_centroids = None;
+        self.lane_left           = LaneLine();
+        self.lane_right          = LaneLine();
 
     def window_mask(self, img_ref, center, level):
         width  = self.window_width
@@ -69,7 +71,7 @@ class LaneDetector:
             l_points = np.zeros_like(binary_warp)
             r_points = np.zeros_like(binary_warp)
 
-            # Go through each level and draw the windows 	
+            # Go through each level and draw the windows    
             for level in range(0,len(window_centroids)):
                 # Window_mask is a function to draw window areas
                 l_mask = self.window_mask(binary_warp,window_centroids[level][1],level)
@@ -92,36 +94,65 @@ class LaneDetector:
             output2 = output1  
         return output1, output2    
 
-
-    def draw_lanes_warped(self, cam, lanes, image):
-        # Create an image to draw the lines on
-        color_warp = np.zeros_like(image).astype(np.uint8)
+    def draw_lanes(self, image, returnOverlayOnly = False):
+        overlay = np.zeros_like(image).astype(np.uint8)
         
-#        ploty = (self.window_height/2 + np.linspace(0, 630, num=720/self.window_height)) / 1
-#        ploty = np.linspace(0, 200, num=100);
-#        (left_fitx, right_fitx) = lanes.get_plot(ploty);
-        (ploty, left_fitx, right_fitx) = lanes.generate_road(10, 300);
-#        left_fitx = left_fitx - 10;
-#        right_fitx = right_fitx - 10;
+        (ploty, left_fitx)  = self.lane_left.generate_road(10, 650);
+        (ploty, right_fitx) = self.lane_right.generate_road(10, 650);
+        offset_x = 1.5; # line width in px
+        left_fitx += offset_x;
+        right_fitx += offset_x;
 
         # Recast the x and y points into usable format for cv2.fillPoly()
-        pts_left  = np.array([np.transpose(np.vstack([left_fitx, color_warp.shape[0]-ploty]))])
-        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, color_warp.shape[0]-ploty])))])
+        pts_left  = np.array([np.transpose(np.vstack([left_fitx, image.shape[0]-ploty]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, image.shape[0]-ploty])))])
         pts = np.hstack((pts_left, pts_right))
 
         # Draw the lane onto the warped blank image
-        cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
-
-        newwarp = cam.unwarp_birdeye(color_warp);
-        # Warp the blank back to original image space using inverse perspective matrix (Minv)
-#        newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0])) 
+        cv2.fillPoly(overlay, np.int_([pts]), (0, 255, 0))
 
         # Combine the result with the original image
-        result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)  
+        if returnOverlayOnly:
+            return overlay;
+        else:
+            result = cv2.addWeighted(image, 1, overlay, 0.5, 0)  
+            return result
+
+    def draw_lanes_warped(self, cam, image):
+        color_warp = self.draw_lanes(image, returnOverlayOnly=True)
+
+        # Draw original points:# FALSCH!!!!
+        for k in range(2):
+            if k == 0: lane = self.lane_left;
+            if k == 1: lane = self.lane_right;
+            for i in range(len(lane.ally)):
+                x0 = int(lane.allx[i])
+                y0 = color_warp.shape[0]-int(lane.ally[i])
+                cv2.circle(color_warp, (x0,y0), int(2+i*1.2), (0,0,255), -1)
+
+        # Warp the blank back to original image space using inverse perspective matrix (Minv)
+        newwarp = cam.unwarp_birdeye(color_warp);
+
+        # Combine the result with the original image
+        result = cv2.addWeighted(image, 1, newwarp, 0.5, 0)
+
+        # Print text
+        ft_to_m = 0.3048
+        r1 = self.lane_left.get_radius()  * ft_to_m
+        r2 = self.lane_right.get_radius() * ft_to_m
+        d1 = self.lane_left.get_vehicle_offset()
+        d2 = self.lane_right.get_vehicle_offset()
+        p1 = self.lane_left.last_plausible;
+        p2 = self.lane_right.last_plausible;
+        r = np.mean([r1,r2]);
+        d = np.sum([d1,d2]);
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(result, 'Curve radius: %.0fm' % (r), (20,50), font, 1.5, (255,255,255), 3)
+        cv2.putText(result, 'Vehicle is %.3fm off center' % (d), (20,100), font, 1.5, (255,255,255), 3)
+        cv2.putText(result, '%d|%d' % (p1,p2), (20,150), font, 1.5, (255,255,255), 3)
         return result
-    
-    
-    def pipeline(self, cam, imgfilter, img):
+
+    def pipeline(self, cam, imgfilter, img, includeDebugImages = True):
 
         # 1. undisdort
         img = img.copy();
@@ -137,20 +168,25 @@ class LaneDetector:
 
         # 4. find centroids
         window_centroids = self.find_window_centroids(img_gradient_warp[:,:,0]);
+        window_centroids = np.array(window_centroids);
         self.previous_centroids = window_centroids;
 
         # 5. fit lanes
-        lane = LaneLine();
-        lane.fit(window_centroids);
-        self.previous_lane = lane; # TODO: das geht besser
+        self.lane_left.fit_next(window_centroids[:,0], window_centroids[:,1]);
+        self.lane_right.fit_next(window_centroids[:,0], window_centroids[:,2]);
 
         # Draw overlay images
-        img_gradient_overlay, img_overlay = self.draw_overlay_image(img_gradient_warp[:,:,0], img_warp, window_centroids)
-        img_warp_with_lanes = self.draw_lanes_warped(cam, lane, img_undist);
+        if includeDebugImages:
+            img_gradient_overlay, img_overlay = self.draw_overlay_image(img_gradient_warp[:,:,0], img_warp, window_centroids)
+            img_overlay_fit     = self.draw_lanes(img_warp);
+            img_warp_with_lanes = self.draw_lanes_warped(cam, img_undist);
 
-        return lane, window_centroids, {
-                'gradient':      img_gradient_overlay,
-                'image':         img_overlay,
-                'gradient_warp': img_gradient_warp[:,:,0],
-                'image_warp':    img_warp,
-                'final':         img_warp_with_lanes}
+            return {'gradient':      img_gradient_overlay,
+                    'image':         img_overlay,
+                    'gradient_warp': img_gradient_warp[:,:,0],
+                    'image_warp':    img_warp,
+                    'image_fit':     img_overlay_fit,
+                    'final':         img_warp_with_lanes}
+        else:
+            img_warp_with_lanes = self.draw_lanes_warped(cam, img_undist);
+            return {'final':         img_warp_with_lanes}

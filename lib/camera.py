@@ -145,9 +145,9 @@ class Camera():
             # a nice fit for displaying our warped result 
             # again, not exact, but close enough for our purposes
             dst = np.float32([[offset_x,        img_size[1]+offset_y],
-                            [Lane_W+offset_x, img_size[1]+offset_y], 
-                            [offset_x,        img_size[1]-Lane_D+offset_y], 
-                            [Lane_W+offset_x, img_size[1]-Lane_D+offset_y]])    
+                              [Lane_W+offset_x, img_size[1]+offset_y], 
+                              [offset_x,        img_size[1]-Lane_D+offset_y], 
+                              [Lane_W+offset_x, img_size[1]-Lane_D+offset_y]])    
 
             # Given src and dst points, calculate the perspective transform matrix
             self.src   = src;
