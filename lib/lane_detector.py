@@ -8,8 +8,6 @@ class LaneDetector:
         self.window_width       = 5 
         self.window_height      = 80 # Break image into 9 vertical layers since image height is 720
         self.margin             = 40 # How much to slide left and right for searching
-        #self.previous_lane      = None;
-        #self.previous_centroids = None;
         self.lane_left           = LaneLine();
         self.lane_right          = LaneLine();
 
@@ -121,7 +119,7 @@ class LaneDetector:
     def draw_lanes_warped(self, cam, image):
         color_warp = self.draw_lanes(image, returnOverlayOnly=True)
 
-        # Draw original points:# FALSCH!!!!
+        # Draw original points:
         for k in range(2):
             if k == 0: lane = self.lane_left;
             if k == 1: lane = self.lane_right;
