@@ -1,6 +1,25 @@
+
 # Advanced Lane Finding Project
 
 [--> Rubric Points](https://review.udacity.com/#!/rubrics/571/view) 
+
+---
+<span style='color:blue'>**NOTE TO REVIEWER**</span>
+
+<span style='color:blue'>I tuned a few parameters to get better results for different situations</span>
+
+* In `ImageFilter.gradient_filter()` I changed sx_thresh from (20, 100) to (15, 250) 
+* In `ImageFilter.gradient_filter()` I changed s_thresh from (170, 255) to (120, 255)
+* In `LaneDetector.__init__()` I changed 
+```
+self.window_height      = 120 
+self.window_width       = 8 
+self.margin             = 10 
+```
+
+The pipeline works much better now, especially when a lot of light is present.
+
+---
 
 The code is structured in four classes:
 * `Camera` handling image distortion correction and warping
@@ -69,7 +88,7 @@ ax2.imshow(dst), ax2.set_title('Undistorted Image', fontsize=30);
 ```
 
 
-![png](output_images/output_4_0.png)
+![png](./output_images/output_5_0.png)
 
 
 # 2. Pipeline (single images)
@@ -99,7 +118,7 @@ plt.subplots_adjust(left=0., right=1, top=1, bottom=0.)
 ```
 
 
-![png](output_images/output_7_0.png)
+![png](./output_images/output_8_0.png)
 
 
 ## Step 2: Lane pixel detection
@@ -125,7 +144,7 @@ plt.show()
 ```
 
 
-![png](output_images/output_9_0.png)
+![png](./output_images/output_10_0.png)
 
 
 ## Step 3: Perspective transformation
@@ -189,7 +208,7 @@ plt.show()
 ```
 
 
-![png](output_images/output_11_0.png)
+![png](./output_images/output_12_0.png)
 
 
 ## Step 4:  Lane detection and model fitting
@@ -203,7 +222,7 @@ In order to obtain a fitted model of the lane line, I tried different approaches
 
 As shown in the following image, second order polynomials are fitted to the detected data:
 
-![](output_images/color_fit_lines.jpg "Color Fit Lines")
+![](http://localhost:8888/files/CarND-Advanced-Lane-Lines/output_images/color_fit_lines.jpg "Color Fit Lines")
 Img. 1
 
 In order to detect wrong detections over time, the lane coordinates are predicted for a distance of [50, 150, 250, 350, 450, 550] px using the newly detected coefficients and using the coefficients from the previous detection. If the RMSE is bigger then 10 the detection of the current frame is considered invalid.
@@ -213,6 +232,9 @@ The result is shown in the following images:
 
 
 ```python
+image = cv2.imread('test_images/test10.jpg')
+image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
 # Run full pipeline
 ld = LaneDetector()
 images = ld.pipeline(cam, ImageFilter, image)
@@ -228,7 +250,7 @@ plt.show()
 ```
 
 
-![png](output_images/output_14_0.png)
+![png](./output_images/output_15_0.png)
 
 
 ## Step 5: Calulation radius of curvature and relative vehicle position
@@ -273,7 +295,7 @@ plt.imshow(images['final']);
 ```
 
 
-![png](output_images/output_17_0.png)
+![png](./output_images/output_18_0.png)
 
 
 # 3. Pipeline (video)
@@ -301,3 +323,8 @@ Although the algorithm performs well on the project video, It fails on the chall
 
 Currently, both lanes are detected independently. Since the road width mostly stays constant, this information can be used. An idea would be to calculate the confidence for both lane lines and if one confidence is lower than the other, the second lane is estimated from the lane with higher confidence.
 Also, a confidence value could be used for better the adaptation rate over time.
+
+
+```python
+
+```
