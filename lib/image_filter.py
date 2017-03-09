@@ -59,7 +59,7 @@ class ImageFilter:
         # Return the result
         return binary_output
     
-    def gradient_filter(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
+    def gradient_filter(img, s_thresh=(120, 255), sx_thresh=(15, 250)):
         img = np.copy(img)
         # Convert to HSV color space and separate the V channel
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
