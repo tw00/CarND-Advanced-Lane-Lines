@@ -5,9 +5,9 @@ from .lane_line import LaneLine
 class LaneDetector:
     def __init__(self):
         # window settings
-        self.window_width       = 5 
-        self.window_height      = 80 # Break image into 9 vertical layers since image height is 720
-        self.margin             = 40 # How much to slide left and right for searching
+        self.window_height      = 120 # Break image into 9 vertical layers since image height is 720
+        self.window_width       = 8
+        self.margin             = 10 # How much to slide left and right for searching
         self.lane_left           = LaneLine();
         self.lane_right          = LaneLine();
 
