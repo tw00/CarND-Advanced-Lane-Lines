@@ -127,19 +127,20 @@ class Camera():
             # Choose offset from image corners to plot detected corners
             # This should be chosen to present the result at the proper aspect ratio
             # My choice of 100 pixels is not exact, but close enough for our purpose here
-            factor   = 5
+            factor_x   = 50
+            factor_y   = 5
 
             # For source points I'm grabbing the outer four detected corners
             src = np.float32([[308,648],[1000,648],[579,460],[703,460]])
 
-            Lane_W = factor*(12)          # ft (lande width)
-            Lane_D = factor*(30+10+30+10) # ft (lane distance)
+            Lane_W = factor_x*(12)          # ft (lande width)
+            Lane_D = factor_y*(30+10+30+10) # ft (lane distance)
 
             # offset_x = 200  # offset for dst points
             # offset_y = -30
-            offset_x = int(Lane_W/2);
+            offset_x = int(Lane_W/4);
             offset_y = -5;
-            cut_x    = 2*offset_x + Lane_W;
+            cut_x    = img_size[0]; # 2*offset_x + Lane_W;
 
             # For destination points, I'm arbitrarily choosing some points to be
             # a nice fit for displaying our warped result 
