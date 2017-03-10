@@ -20,16 +20,16 @@ class LaneLine():
         # was the last detection plausible?
         self.last_plausible = False;
 
-    def fit_next(self, y, x):
+    def fit_next(self, y, x, conf):
         self.ally = y
         self.allx = x
         self.last_fit = self.current_fit;
 
         # Fit a second order polynomial to pixel positions in each lane line
         if True:
-            idx = self.idx_reject_outliers(self.allx);
+            idx = self.idx_reject_outliers(self.allx, conf);
             # make sure at least 3 data points are present for fitting
-            if np.sum( idx ) > 3:
+            if np.sum( idx ) >= 3:
                 self.current_fit = np.polyfit(self.ally[idx], self.allx[idx], 2)
             else:
                 self.current_fit = np.array([0.,0.,0.]);
@@ -45,11 +45,12 @@ class LaneLine():
             if err > 10 or np.sum(self.current_fit) == 0:
                 self.last_plausible = False;
             else:
-                self.best_fit = self.best_fit - 0.05 * (self.best_fit - self.current_fit);
+                self.best_fit = self.best_fit - 0.25 * (self.best_fit - self.current_fit);
                 self.last_plausible = True;
         else:
             self.best_fit = self.current_fit
             self.detected = True;
+        return idx
 
     def fit_poly_RANSAC(self, y, x):
         best_mse    = 1e99;
@@ -68,11 +69,11 @@ class LaneLine():
                 best_choice = r;
         return best_result[0]
 
-    def idx_reject_outliers(self, data, m = 2., low = 5):
+    def idx_reject_outliers(self, data, conf, m = 3.0, low = 5):
         d = np.abs(data - np.median(data[data > low]))
         mdev = np.median(d)
         s = d/mdev if mdev else 0.*d
-        return np.logical_and(s < m, data > low )
+        return np.logical_and( np.logical_and(s < m, data > low ), conf > 0.1 );
 
     def generate_road(self, offset, window_height):
         ploty = offset + np.linspace(0, window_height, num=200)
@@ -83,17 +84,18 @@ class LaneLine():
         #radius of curvature of the line in some units
         self.fit_cr = self.best_fit;
         y_eval = np.max(self.ally)
-        factor     = 5 # px/ft
-        ft_to_m    = 0.3048 # m/ft
-        ym_per_pix = (1/factor) * ft_to_m # ft/px * m/ft => m/px
-        xm_per_pix = (1/factor) * ft_to_m # ft/px * m/ft => m/px
-        curverad = ((1 + (2*self.fit_cr[0]*y_eval*ym_per_pix + self.fit_cr[1])**2)**1.5) / np.absolute(2*self.fit_cr[0])
+        factor_x     = 50 # px/ft
+        factor_y     = 5 # px/ft
+        ft_to_m      = 0.3048 # m/ft
+        ym_per_pix   = (1/factor_y) * ft_to_m # ft/px * m/ft => m/px
+        xm_per_pix   = (1/factor_x) * ft_to_m # ft/px * m/ft => m/px
+        curverad     = ((1 + (2*self.fit_cr[0]*y_eval*ym_per_pix + self.fit_cr[1])**2)**1.5) / np.absolute(2*self.fit_cr[0])
         return curverad
 
     def get_vehicle_offset(self):
         self.fit_cr = self.best_fit; 
-        factor     = 5 # px/ft
+        factor_x   = 50 # px/ft
         ft_to_m    = 0.3048 # m/ft
-        xm_per_pix = (1/factor) * ft_to_m # ft/px * m/ft => m/px
-        center_px = 59
+        xm_per_pix = (1/factor_x) * ft_to_m # ft/px * m/ft => m/px
+        center_px  = 450
         return (center_px - self.fit_cr[2])*xm_per_pix
