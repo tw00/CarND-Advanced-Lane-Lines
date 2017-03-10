@@ -242,7 +242,7 @@ In order to obtain a fitted model of the lane line, I tried different approaches
 
 As shown in the following image, second order polynomials are fitted to the detected data:
 
-![](http://localhost:8888/files/CarND-Advanced-Lane-Lines/output_images/color_fit_lines.jpg "Color Fit Lines")
+![png](./output_images/color_fit_lines.jpg "Color Fit Lines")
 Img. 1
 
 In order to detect wrong detections over time, the lane coordinates are predicted for a distance of [50, 150, 250, 350, 450, 550] px using the newly detected coefficients and using the coefficients from the previous detection. If the RMSE is bigger then 10 the detection of the current frame is considered invalid.
