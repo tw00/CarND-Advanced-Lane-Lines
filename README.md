@@ -4,7 +4,7 @@
 [--> Rubric Points](https://review.udacity.com/#!/rubrics/571/view) 
 
 ---
-<span style='color:blue'>**NOTE TO REVIEWER**</span>
+<span style='color:blue'>**NOTE TO REVIEWER 1**</span>
 
 <span style='color:blue'>I tuned a few parameters to get better results for different situations</span>
 
@@ -18,6 +18,25 @@ self.margin             = 10
 ```
 
 The pipeline works much better now, especially when a lot of light is present.
+
+---
+
+<span style='color:blue'>**NOTE TO REVIEWER 2**</span>
+
+<span style='color:blue'>I implemented an additional mechanism for more robust detection. For each detection of a lane segment, I calculate a confidence value based on the sum of pixels inside the search window. 
+
+```python
+l_confidence = np.sum(conv_signal[l_min_index:l_max_index]/np.sum(conv_signal))
+r_confidence = np.sum(conv_signal[r_min_index:r_max_index]/np.sum(conv_signal))
+```
+
+In order to get values between 0 and 1, I normalized the signal. During fitting I then remove lane detections with confidence lower or equal than 0.1 (see `LaneLine.idx_reject_outliers()`)
+
+Also, I changed the birdseye warping so that the resulting image has more pixels in the x-direction.
+
+Additionally, I removed areas of the transformed images where no lane are expected by drawing a black triangle on the warped image (see `LaneDetector.mask_image()`.
+
+The pipeline gives much better results now.
 
 ---
 
@@ -160,11 +179,11 @@ As source points, I marked for points in `straight_lines1.jpg`. On the right sid
 Based on my research I found that typical lane width in California, USA is 3.7m or 12ft. Also, I found that "each dashed line measures 10 feet, and the empty spaces in-between measure 30 feet". This lead me to the definition of the real world distances between my marker source points:
 
 ```
-129         Lane_W = factor*(12)          # ft (lane width)
-130         Lane_D = factor*(30+10+30+10) # ft (lane distance)
+129         Lane_W = factor_x*(12)          # ft (lane width)
+130         Lane_D = factor_y*(30+10+30+10) # ft (lane distance)
 ```
 
-The factor of 5 is used to transfer real-world distances to pixels distances again. This gives me the new image coordinates of the warped image.
+A factor of 5 is used in x-direction and a factor of 50 is used in y-direction to transfer real-world distances to pixels distances again. This gives me the new image coordinates of the warped image.
 
 ```
 140         dst = np.float32([[offset_x,        img_size[1]+offset_y],
@@ -181,7 +200,7 @@ The offsets are defined as follows. An additional half lane width is used on the
 142             cut_x    = 2*offset_x + Lane_W;
 ```
 
-I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image. To check for parallelity an additional yellow line is given. My approach is a little bit different from the approach showed in class, as it tries to calculate correct image proportions for the birdseye view. This is useful because pixel distances in the warped image can be converted to real world distances using a factor of 5 px/ft.
+I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image. To check for parallelity an additional yellow line is given. My approach is a little bit different from the approach showed in class, as it tries to calculate correct image proportions for the birdseye view. This is useful because pixel distances in the warped image can be converted to real world distances using a factor of 5 px/ft and 50 px/ft.
 
 
 ```python
@@ -194,7 +213,8 @@ image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 image_warp = cam.warp_birdeye(image)
 
 fig = plt.figure(figsize=(18, 9)) 
-gs = gridspec.GridSpec(1, 2, width_ratios=[10.6, 1]) 
+#gs = gridspec.GridSpec(1, 2, width_ratios=[10.6, 1]) 
+gs = gridspec.GridSpec(1, 2, width_ratios=[1, 1]) 
 ax0 = plt.subplot(gs[0])
 ax0.imshow(image)
 ax0.plot(cam.src[:,0],cam.src[:,1],'b.-', linewidth=0.3)
@@ -203,7 +223,7 @@ for i in range(4): ax0.plot(cam.src[i,0],cam.src[i,1],'r.')
 ax1 = plt.subplot(gs[1])
 ax1.imshow(image_warp[0:,:,:])
 ax1.plot(cam.dst[:,0],cam.dst[:,1],'b.-')
-ax1.plot([25,25],[0,715], 'y-')
+#ax1.plot([25,25],[0,715], 'y-')
 plt.show()
 ```
 
@@ -232,7 +252,7 @@ The result is shown in the following images:
 
 
 ```python
-image = cv2.imread('test_images/test10.jpg')
+image = cv2.imread('test_images/test6.jpg')
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
 # Run full pipeline
@@ -240,18 +260,24 @@ ld = LaneDetector()
 images = ld.pipeline(cam, ImageFilter, image)
 
 # Display the final results
-f, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, figsize=(20, 9))
+f, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plt.subplots(2, 3, figsize=(16, 6))
+f.tight_layout()
 ax1.imshow(images['gradient']);                  ax1.set_title('gradient')
 ax2.imshow(images['image']);                     ax2.set_title('image')
 ax3.imshow(images['gradient_warp'],cmap='gray'); ax3.set_title('gradient_warp')
 ax4.imshow(images['image_warp']);                ax4.set_title('image_warp')
 ax5.imshow(images['image_fit']);                 ax5.set_title('image_fit')
+ax6.imshow(image);                               ax6.set_title('original')
 plt.show()    
 ```
 
 
 ![png](./output_images/output_15_0.png)
 
+
+I also mask the transformed image like this (mask shown in red):
+
+![alt](./output_images/mask.png)
 
 ## Step 5: Calulation radius of curvature and relative vehicle position
 
@@ -261,7 +287,8 @@ I implemented two methods. `LaneLine.get_radius` returns the radius of curvature
 Withe the previously described "pixel to feet"-factor and appropriate unit conversion pixels can be transformed to real world distances:
 
 ```
-factor     = 5 # px/ft
+factor_x   = 5 # px/ft
+factor_y   = 50 # px/ft
 ft_to_m    = 0.3048 # m/ft
 ym_per_pix = (1/factor) * ft_to_m # ft/px * m/ft => m/px
 xm_per_pix = (1/factor) * ft_to_m # ft/px * m/ft => m/px
@@ -277,7 +304,7 @@ It is calculated for both lanes and then averaged.
 The lane offset from the lane center is calculated from
 
 ```
-center_px = 59
+center_px = 450
 lane_offset = (center_px - self.fit_cr[2])*xm_per_pix # TODO: Das ist feet
 ```
 
@@ -295,7 +322,7 @@ plt.imshow(images['final']);
 ```
 
 
-![png](./output_images/output_18_0.png)
+![png](./output_images/output_19_0.png)
 
 
 # 3. Pipeline (video)
@@ -305,13 +332,13 @@ Final result on `project_video.mp4` looks like:
 
 ```python
 from IPython.display import HTML
-HTML("""<video width="960" height="540" controls><source src="{0}"></video>""".format('project_video_lane_detection.mp4'))
+HTML("""<video width="960" height="540" controls><source src="{0}"></video>""".format('project_video_lane_detection.mp4?2'))
 ```
 
 
 
 
-<video width="960" height="540" controls><source src="project_video_lane_detection.mp4"></video>
+<video width="960" height="540" controls><source src="project_video_lane_detection.mp4?2"></video>
 
 
 
@@ -323,8 +350,3 @@ Although the algorithm performs well on the project video, It fails on the chall
 
 Currently, both lanes are detected independently. Since the road width mostly stays constant, this information can be used. An idea would be to calculate the confidence for both lane lines and if one confidence is lower than the other, the second lane is estimated from the lane with higher confidence.
 Also, a confidence value could be used for better the adaptation rate over time.
-
-
-```python
-
-```
